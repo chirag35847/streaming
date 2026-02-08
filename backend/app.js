@@ -19,8 +19,34 @@ const io = new Server(server, {
     cors: {origin: "*"}
 })
 
+const brocastUserCount = () => {
+    io.emit("user-count", io.engine.clientsCount)
+}
+
 io.on("connection", (socket) => {
+    socket.emit("your-id", socket.id)
+    brocastUserCount();
     if (fs.existsSync(LOG_FILE_PATH)){
         socket.emit("init", fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
     }
+
+    socket.on("send-brodcast", (msg) => {
+        const message = `[USER ${socket.id}]: ${msg}`
+        io.emit("update", message + "\n")
+    })
+})
+
+const watcher = chokidar.watch(LOG_FILE_PATH, {persistent: true});
+watcher.on("change", (path) => {
+    const stats = fs.statSync(path);
+    const newSize = stats.size;
+    if(newSize > lastReadSize) {
+        const stream = fs.createReadStream(path, {start: lastReadSize, end: newSize - 1});
+        stream.on("data", (data)=>io.emit("update", data.toString()));
+        console.log("update")
+    } else if(newSize < lastReadSize) {
+        io.emit("init", fs.readFileSync(path, 'utf-8'));
+    }
+
+    lastReadSize = newSize;
 })
