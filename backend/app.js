@@ -25,6 +25,7 @@ const brocastUserCount = () => {
 
 io.on("connection", (socket) => {
     socket.emit("your-id", socket.id)
+    io.emit("update", `[SYSTEM] User ${socket.id} joined the chat`)
     brocastUserCount();
     if (fs.existsSync(LOG_FILE_PATH)){
         socket.emit("init", fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
@@ -33,6 +34,20 @@ io.on("connection", (socket) => {
     socket.on("send-brodcast", (msg) => {
         const message = `[USER ${socket.id}]: ${msg}`
         io.emit("update", message + "\n")
+    })
+
+    socket.on("send-private", ({targetId, message})=> {
+        io.to(targetId).emit("private-message", `From ${socket.id}: ${message}`)
+    })
+
+    socket.on("typing", (isTyping) => {
+        // console.log(socket.id, isTyping)
+        socket.broadcast.emit("user-typing", {id: socket.id, isTyping});
+    })
+
+    socket.on("disconnect", () => {
+        brocastUserCount();
+        io.emit("update", `[SYSTEM] User ${socket.id} left the chat`)
     })
 })
 

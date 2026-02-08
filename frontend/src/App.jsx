@@ -10,6 +10,7 @@ function App() {
   const [userCount, setUserCount] = useState(0);
   const [message, setMessage] = useState("")
   const [targetId, setTargetId] = useState("")
+  const [typingUsers, setTypingUsers] = useState([]);
 
   useEffect(()=>{
     socket.on("init", (data) => {
@@ -20,13 +21,28 @@ function App() {
 
     socket.on("your-id", (id) => setMyId(id))
 
+    socket.on("private-message", (msg) => {
+      setLogs(prev => [...prev, `[PRIVATE]: ${msg}`])
+    })
+
     socket.on("update", (data) => {
-      console.log("recieved an update")
       setLogs(prev => [...prev, ...data.split("\n").filter(log=>log.trim())])
+    })
+
+    socket.on("user-typing", ({id, isTyping}) => {
+      console.log(id, isTyping)
+      setTypingUsers(prev => {
+        if(isTyping) {
+          return [...new Set([...prev, id])]
+        }
+        return prev.filter(u => u !== id);
+      });
     })
 
     return () => socket.off()
   },[])
+
+
 
   const sendBrodcast = () => {
     socket.emit("send-brodcast", message)
@@ -34,9 +50,19 @@ function App() {
   }
 
   const sendPrivate = () => {
-    socket.emit("send-private", {taget, message})
+    socket.emit("send-private", {targetId, message})
     setMessage();
   }
+
+  useEffect(()=> {
+    if(message) {
+      socket.emit("typing", true);
+      const timout = setTimeout(() => socket.emit("typing", false), 2000)
+      return () => clearTimeout(timout)
+    } else {
+      socket.emit("typing", false);
+    }
+  },[message])
 
   return (
     <>
@@ -53,6 +79,10 @@ function App() {
         </div>
       ))
      }
+
+     <div>
+      {typingUsers.length>0 && `${typingUsers.join(", ")} ${typingUsers.length>1 ? "are": "is"} typing...`}
+     </div>
 
 
      <input value={message} placeholder="Message..." onChange={e => setMessage(e.target.value)}></input>
